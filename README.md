@@ -33,7 +33,3 @@ The project uses data from Instagram user profiles, including who they follow an
 ## Contributing
 
 *Include instructions on how others can contribute to your project here.*
-
-## License
-
-*Include information about the license here.*
