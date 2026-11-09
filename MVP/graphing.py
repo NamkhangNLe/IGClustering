@@ -1,28 +1,34 @@
-import networkx as nx
-import matplotlib.pyplot as plt
-import pandas as pd
+"""Draw the ego network (replaces the old plt.show() version).
 
-# Load the data from Merged.csv
-df = pd.read_csv('Merged.csv')
+Loads the follower / following snapshot, rebuilds the three groups, and
+saves a static radial plot to ego_network.png (Agg backend, no display
+needed). For the numbers behind the picture, run analyze.py.
 
-# Create a new undirected graph
-G = nx.Graph()
+Usage:
+    python3 graphing.py           # from inside MVP/
+"""
 
-# Add a node for yourself
-G.add_node('Your Name')
+import os
 
-# Add a node for each person in the DataFrame and an edge from you to them
-for index, row in df.iterrows():
-    G.add_node(row['full_name'])
-    G.add_edge('Your Name', row['full_name'])
+from analyze import load_list, plot_ego_network, username_set
 
-# Draw the graph
-pos = nx.spring_layout(G)  # positions for all nodes
+HERE = os.path.dirname(os.path.abspath(__file__))
 
-# Draw nodes
-nx.draw_networkx_nodes(G, pos, node_color='red', node_size=10)
 
-# Draw edges
-nx.draw_networkx_edges(G, pos, edge_color='k', width=0.1)
+def main():
+    followers = load_list("Namkhang-Followers.json", "followers")
+    following = load_list("Namkhang-Following.json", "followings")
+    f_set, g_set = username_set(followers), username_set(following)
 
-plt.show()
+    groups = [
+        ("Mutuals", sorted(f_set & g_set), "#16a34a"),
+        ("Followers only", sorted(f_set - g_set), "#2563eb"),
+        ("Following only", sorted(g_set - f_set), "#d97706"),
+    ]
+    out = os.path.join(HERE, "ego_network.png")
+    plot_ego_network(groups, out)
+    print(f"Saved {out}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,37 @@
+{
+  "snapshot": "April 2024",
+  "counts": {
+    "followers": 615,
+    "following": 571,
+    "mutual": 397,
+    "followers_only": 218,
+    "following_only": 174,
+    "unique_users": 789
+  },
+  "mutuality": {
+    "of_following_pct": 69.5,
+    "of_followers_pct": 64.6
+  },
+  "graph": {
+    "nodes": 790,
+    "edges": 789,
+    "diameter": 2,
+    "average_shortest_path": 1.9975,
+    "density": 0.0025,
+    "clustering_coefficient": 0.0,
+    "note": "Star graph: 1-hop ego data only. Every person is 1 hop from Namkhang and 2 hops from every other person."
+  },
+  "missing_full_names": {
+    "followers": 36,
+    "following": 23
+  },
+  "validation": {
+    "derived_lists_match_computed_sets": true,
+    "no_duplicate_usernames": true,
+    "merge_py_reproduces_merged_csv": true
+  },
+  "school_analysis": {
+    "possible": false,
+    "reason": "No school affiliation exists anywhere in the data: the scrape collected username + full_name only, and there are no second-hop edges. The Ivy League vs Georgia Tech separation question cannot be answered from this dataset."
+  }
+}

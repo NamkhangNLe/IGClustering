@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IGClustering — Namkhang's Instagram ego network</title>
+<style>
+  :root {
+    --paper: #FAF8F5; --ink: #191919; --muted: #6b6560; --card: #ffffff;
+    --green: #16a34a; --blue: #2563eb; --amber: #d97706; --line: #e8e2da;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.55; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 40px 20px 64px; }
+  h1 { font-size: 34px; letter-spacing: -0.8px; margin: 0 0 6px; font-weight: 800; }
+  .sub { color: var(--muted); font-size: 17px; margin: 0 0 28px; max-width: 640px; }
+  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 28px; }
+  @media (max-width: 640px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  .stat { background: var(--card); border-radius: 16px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .stat b { display: block; font-size: 30px; letter-spacing: -0.8px; }
+  .stat span { font-size: 13px; color: var(--muted); font-weight: 600; }
+  .stat .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+  .card { background: var(--card); border-radius: 20px; padding: 20px; box-shadow: 0 1px 6px rgba(0,0,0,.07); margin-bottom: 28px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
+  .controls input { flex: 1; min-width: 200px; padding: 11px 14px; font-size: 15px;
+    border: 1px solid var(--line); border-radius: 12px; background: var(--paper); color: var(--ink); outline: none; }
+  .controls input:focus { border-color: var(--ink); }
+  .chip { border: 1px solid var(--line); background: var(--paper); border-radius: 999px;
+    padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--ink); }
+  .chip.off { opacity: .35; }
+  .chip .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+  #net { width: 100%; height: auto; display: block; touch-action: manipulation; }
+  #net circle.node { cursor: pointer; transition: opacity .15s; }
+  #net circle.node:hover { stroke: var(--ink); stroke-width: 1.5; }
+  #net circle.node.dim { opacity: .08; }
+  #net circle.node.match { stroke: var(--ink); stroke-width: 1.5; }
+  #net line.spoke { stroke-opacity: .07; }
+  #net line.spoke.dim { opacity: .05; }
+  #tooltip { position: absolute; pointer-events: none; background: var(--ink); color: #fff;
+    padding: 6px 10px; border-radius: 8px; font-size: 13px; display: none; z-index: 5; white-space: nowrap; }
+  #detail { margin-top: 12px; font-size: 15px; min-height: 24px; }
+  #detail b { font-size: 16px; }
+  #matches { font-size: 14px; color: var(--muted); margin-top: 8px; min-height: 20px; }
+  #matches button { border: none; background: none; color: var(--blue); font-size: 14px;
+    cursor: pointer; padding: 2px 4px; text-decoration: underline; }
+  h2 { font-size: 22px; letter-spacing: -0.4px; margin: 0 0 10px; }
+  .findings li { margin-bottom: 8px; }
+  .findings, .method { font-size: 16px; }
+  .method code { background: #f0ebe4; padding: 1px 6px; border-radius: 6px; font-size: 14px; }
+  .mutebar { height: 8px; background: #eee9e2; border-radius: 99px; overflow: hidden; margin: 6px 0 14px; }
+  .mutebar i { display: block; height: 100%; background: var(--green); }
+  .fine { font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>How close is everyone, really?</h1>
+  <p class="sub">Namkhang's Instagram ego network, April 2024 snapshot. One account, 789 people,
+  and the honest answer to how separated they all are.</p>
+
+  <div class="stats">
+    <div class="stat"><b>615</b><span>followers</span></div>
+    <div class="stat"><b>571</b><span>following</span></div>
+    <div class="stat"><b><span class="dot" style="background:var(--green)"></span>397</b><span>mutuals</span></div>
+    <div class="stat"><b><span class="dot" style="background:var(--blue)"></span>218</b><span>followers only</span></div>
+    <div class="stat"><b><span class="dot" style="background:var(--amber)"></span>174</b><span>following only</span></div>
+  </div>
+
+  <div class="card">
+    <div class="controls">
+      <input id="q" type="search" placeholder="Search a username or name…" autocomplete="off">
+      <button class="chip" data-g="0"><span class="dot" style="background:var(--green)"></span>Mutuals</button>
+      <button class="chip" data-g="1"><span class="dot" style="background:var(--blue)"></span>Followers only</button>
+      <button class="chip" data-g="2"><span class="dot" style="background:var(--amber)"></span>Following only</button>
+    </div>
+    <div style="position:relative">
+      <svg id="net" viewBox="0 0 1000 1000" role="img" aria-label="Radial ego network"></svg>
+      <div id="tooltip"></div>
+    </div>
+    <div id="detail">Hover a dot to see who it is. Click to pin it here.</div>
+    <div id="matches"></div>
+  </div>
+
+  <div class="card findings">
+    <h2>Findings</h2>
+    <ul>
+      <li><b>Everyone is 1 hop from Namkhang, 2 hops from everyone else.</b> The data is
+      1-hop only, so the graph is a star: 790 nodes, 789 edges, diameter 2, average
+      shortest path 1.9975, clustering coefficient 0. Any two people in this network
+      are connected through exactly one intermediate, Namkhang.</li>
+      <li><b>69.5% of the people Namkhang follows follow him back</b> (397 of 571).
+      64.6% of his followers are people he follows back (397 of 615).</li>
+      <li><b>The non-mutuals split unevenly.</b> 218 people follow Namkhang without a
+      follow-back, versus 174 accounts he follows that don't follow him. The
+      following-only side is mostly brands, meme pages, and GT accounts.</li>
+      <li><b>Mutuality, of following:</b> 69.5%
+        <div class="mutebar"><i style="width:69.5%"></i></div></li>
+      <li><b>Mutuality, of followers:</b> 64.6%
+        <div class="mutebar"><i style="width:64.6%"></i></div></li>
+    </ul>
+    <h2>What this does not answer</h2>
+    <p>The original question, Ivy League vs Georgia Tech separation, <b>cannot be
+    answered from this dataset</b>. The scrape collected username and full name only;
+    there is no school affiliation anywhere in the data, and no second-hop edges
+    (we never collected who anyone else follows). To answer it for real you would
+    need, per person, a school label and at least one more hop of follow edges.
+    Instagram no longer exposes that data through the endpoints this scraper used,
+    so the honest finish is the ego-network analysis above, not an invented
+    school clustering.</p>
+  </div>
+
+  <div class="card method">
+    <h2>How it was done</h2>
+    <p><code>MVP/scrape.js</code> ran in the browser console against Instagram's old
+    GraphQL endpoints and dumped followers / following as JSON (April 2024).
+    <code>MVP/merge.py</code> joins the two lists into <code>Merged.csv</code> (the
+    397 mutuals). <code>MVP/analyze.py</code> validates the derived lists against the
+    computed sets, computes the graph statistics, and writes
+    <code>MVP/results.json</code> plus a static plot (<code>ego_network.png</code>).
+    <code>MVP/graphing.py</code> re-renders that plot. This page is generated from
+    the same JSON by <code>make_index.py</code>.</p>
+    <p class="fine">Snapshot: April 2024. Usernames shown here are already public in
+    this repository's MVP data files. Run <code>python3 MVP/analyze.py</code> to
+    reproduce every number on this page.</p>
+  </div>
+</div>
+
+<script>
+const USERS = [{"u":"16.adhamsahebzadah","n":"Adham Sahebzadah","g":2},{"u":"703bape","n":"been in the field","g":1},{"u":"8ryanle","n":"bryan le","g":0},{"u":"_.lily.nguyen._","n":"","g":1},{"u":"_chrskm_","n":"","g":0},{"u":"_downbadpatrol","n":"Down Bad Patrol","g":2},{"u":"_elizabethwu_","n":"elizabeth wu","g":1},{"u":"_emilyyoung__","n":"Emily Young","g":0},{"u":"_enm6","n":"","g":1},{"u":"_is_tont_","n":"tonty","g":0},{"u":"_jadehoward","n":"jade","g":1},{"u":"_juliaaaaa_chu","n":"Julia","g":0},{"u":"_kennethle","n":"kenny","g":0},{"u":"_nikirabisheva_","n":"Nikolet Rabisheva","g":0},{"u":"_shagundalal","n":"Shagun 🤍","g":0},{"u":"_tim.ph","n":"tim","g":1},{"u":"_vkandalai_","n":"","g":0},{"u":"_wonthanhsoup","n":"Th@nh","g":1},{"u":"a.alali7_7","n":"Alhassan Alali","g":0},{"u":"a.zannelli","n":"Alex Zannelli","g":0},{"u":"a_human_bean_","n":"Em","g":2},{"u":"aa.sawhney","n":"Aashna","g":0},{"u":"aaronl1661","n":"Aaron Lin","g":0},{"u":"aaryaman_bhute","n":"Aaryaman Bhute","g":0},{"u":"abdelrahman7037","n":"Abdelrahman Osman","g":0},{"u":"abelisable2","n":"Abel Chen","g":2},{"u":"abesocool","n":"Name Is Abe, With A Sus Cut","g":0},{"u":"abigailauger","n":"Abigail Auger","g":0},{"u":"abmason7","n":"Adam Mason","g":0},{"u":"accessatl","n":"Access Atlanta","g":2},{"u":"adam.jaynes21","n":"Adam Jaynes","g":1},{"u":"adamelzoobi","n":"Adam Sammer El-Zoobi","g":0},{"u":"adammartin2","n":"Adam Martin","g":0},{"u":"admani_explains","n":"Zaid Admani","g":2},{"u":"adnan.rahimzai","n":"Adnan","g":1},{"u":"adventuringwithnala","n":"Chris & Nala","g":2},{"u":"aftan_bhai","n":"Aftan","g":0},{"u":"aganta2","n":"Akshay Ganta","g":1},{"u":"ahaha1306","n":"Phatt Tran","g":0},{"u":"aiden_him03","n":"Aiden Kim","g":0},{"u":"aidsnguyen","n":"AidAn","g":0},{"u":"airrack","n":"Eric Decker","g":2},{"u":"ajg_7","n":"Andrew Gunawan","g":0},{"u":"ak.kamalesh","n":"Akhil K","g":0},{"u":"akberlatif","n":"Akber Latif","g":0},{"u":"akheeeeeel","n":"Akheeeeeel","g":1},{"u":"akhilkamalesh","n":"Akhil Kamalesh","g":1},{"u":"akshayganta7","n":"Akshay Ganta","g":1},{"u":"alansaji360","n":"Alan Saji","g":0},{"u":"alecmdavis","n":"Alexander Davis","g":0},{"u":"alex.choi","n":"Alex Choi","g":2},{"u":"alex.yeeet","n":"alex yee","g":0},{"u":"alexander.steele5","n":"Alexander Steele","g":0},{"u":"alexanderbekele","n":"Alexander Berhanu Bekele","g":1},{"u":"alexfontinha","n":"alex fontinha","g":0},{"u":"alexfontinhaspam","n":"private spam shit","g":1},{"u":"alextodasilva","n":"Alex DaSilva","g":0},{"u":"alexxpadillaa","n":"Alex Padilla 🌞🍄🌿🌈","g":1},{"u":"alice_m_han","n":"Alice Han","g":0},{"u":"allenscai","n":"Allen Cai","g":0},{"u":"alli.ntz","n":"𝑨𝒍𝒍𝒊 𝒁𝒆𝒕𝒍𝒊𝒏","g":0},{"u":"alvinlimmm","n":"Alvin Lim","g":0},{"u":"alyssaluskk","n":"Alyssa","g":1},{"u":"aman.shumuye","n":"Aman","g":0},{"u":"ameliaalimm","n":"amelia","g":0},{"u":"amro.taka","n":"عمرو طاقة","g":0},{"u":"amroamai","n":"Amro Ibrahim","g":0},{"u":"anand.col","n":"Anand","g":0},{"u":"andrew.e.griner","n":"Andrew Griner","g":1},{"u":"andrew__tam","n":"Andrew Tam","g":0},{"u":"andrewppoo","n":"Andrew Pham","g":0},{"u":"andrewschulz","n":"Andrew Schulz","g":2},{"u":"andy.and.michelle","n":"ᴀɴᴅʏ ᴀɴᴅ ᴍɪᴄʜᴇʟʟᴇ","g":2},{"u":"aneesdrivingschool","n":"Anees Rehman","g":1},{"u":"anhtran.np","n":"Anh Tran","g":0},{"u":"anikethrao01","n":"Aniketh","g":0},{"u":"anirudhtammisetti","n":"Anirudh Tammisetti","g":0},{"u":"annabelhapp","n":"annabel!!!!!!!","g":1},{"u":"annanguy3n_","n":"Anna Nguyen","g":0},{"u":"anne.ng3","n":"Anne Nguyen","g":0},{"u":"annie.trann","n":"annie trần","g":0},{"u":"anthonypertico","n":"Anthony Perticone","g":1},{"u":"anushka.lakum","n":"Anushka","g":0},{"u":"arii.angeles","n":"αяιєℓℓє αиgєℓєѕ","g":1},{"u":"ariii.angeles","n":"αяιєℓℓє αиgєℓєѕ","g":1},{"u":"arjun_bhatia1234","n":"","g":1},{"u":"arjuntina514","n":"Arjun Renjith","g":0},{"u":"arnav_jadhav","n":"Arnav Jadhav","g":1},{"u":"aryan.bangalore","n":"Aryan","g":0},{"u":"ashley_diane_spam","n":"🌸Ashley&Diane Inc.💕","g":0},{"u":"ashtran03","n":"Ashley Tran","g":0},{"u":"asian.bacon","n":"Asian Bacon","g":2},{"u":"asiansneverdie","n":"Comedy✖️Culture✖️Community","g":2},{"u":"atharvagorantiwar","n":"Atharva Gorantiwar","g":0},{"u":"athena.kle","n":"khanh","g":0},{"u":"atom_gains","n":"SuavePapi 🌊","g":1},{"u":"avanmiller15","n":"Ava Miller","g":1},{"u":"avengersimscreaming","n":"Vi🖤💜🖤","g":2},{"u":"avinashatluru","n":"avinash atluru","g":0},{"u":"aysyonj343","n":"AaronJA","g":0},{"u":"ayy_ham","n":"ayham أيهم","g":1},{"u":"b_steele21","n":"Ben Steele","g":0},{"u":"babyfaceburrito","n":"burritospam","g":0},{"u":"bairongtan","n":"ivan tan | 谭柏荣","g":2},{"u":"banana.yacht","n":"da boat","g":1},{"u":"baoser16","n":"Bao Le","g":0},{"u":"barstoolatlanta","n":"Barstool Atlanta","g":2},{"u":"barstooldmv","n":"Barstool DMV","g":2},{"u":"baxate_carter","n":"Baxate","g":2},{"u":"becky.woolf","n":"Becky Woolf","g":1},{"u":"bella.allison","n":"b e l l a :) 🇵🇭","g":1},{"u":"belling_oven","n":"ryan","g":0},{"u":"ben.mnguyen","n":"Ben Nguyen","g":0},{"u":"ben_fren","n":"Ben French","g":0},{"u":"ben_klu","n":"Ben Klukaszewski","g":0},{"u":"benjamin.pham1","n":"Pham","g":0},{"u":"benji_nguyen14","n":"Benji Nguyen","g":0},{"u":"benjycn","n":"Ben Nguyen","g":0},{"u":"benlai._","n":"Ben Lai","g":1},{"u":"benn.ton","n":"Ben Ton","g":0},{"u":"benswolfson","n":"Ben","g":2},{"u":"berthold__hannah","n":"Hannah","g":1},{"u":"big.goose45","n":"Graydon.G","g":0},{"u":"bigc___","n":"Connor Canavan","g":0},{"u":"billia.m","n":"William Cooksey","g":2},{"u":"bornimusic","n":"Born I / Ofosu Jones-Quartey","g":1},{"u":"boysbeingboys","n":"Boys Being Boys 👱‍♂️","g":2},{"u":"brainngym","n":"Brain Gym","g":0},{"u":"brandoncohen","n":"Brandon","g":2},{"u":"brandonnewguyin","n":"brandon","g":1},{"u":"brandonnn.ngo","n":"Brandon Ngo","g":0},{"u":"brandonvuong04","n":"Brandon Vuong","g":0},{"u":"brandphm","n":"Brandon Pham","g":0},{"u":"bretclosson","n":"Bret Closson","g":0},{"u":"brian_bippert","n":"Brian Bippert","g":1},{"u":"brian_k_dao","n":"","g":0},{"u":"brr_ice_p","n":"Bryce Pardo","g":0},{"u":"bschuman2002","n":"Ben Schuman","g":1},{"u":"buzz_gt","n":"Buzz","g":2},{"u":"c.j.chavez","n":"CJ Chavez","g":0},{"u":"c_blur","n":"Cameron","g":0},{"u":"ca.aronhime","n":"carolina aronhime","g":0},{"u":"cabreraangel","n":"Angel Cabrera","g":2},{"u":"cade.anderson_","n":"Cade","g":0},{"u":"cadenglodde","n":"Caden","g":0},{"u":"cadenglodde_too","n":"Spam","g":1},{"u":"caileezeraat","n":"c :)","g":1},{"u":"calebthemayer","n":"Caleb Mayer","g":1},{"u":"calibratedistributor","n":"Bao Nguyen","g":0},{"u":"calix.tang","n":"Calix Tang","g":0},{"u":"cameronhadley2","n":"Cameron Hadley","g":1},{"u":"capital_gymnast","n":"🌻Anastasiia🌻","g":2},{"u":"careercolin","n":"Colin Rocker","g":2},{"u":"carlitos__70","n":"Carlos","g":0},{"u":"caseybassy","n":"Casey Abrams","g":2},{"u":"casperhclin","n":"Casper","g":1},{"u":"cassidykortum14","n":"Cassidy Kortum","g":1},{"u":"cecelia.bacon","n":"Cᴇᴄᴇʟɪᴀ Bᴀᴄᴏɴ","g":0},{"u":"cehzh","n":"lawrence zhen","g":0},{"u":"cgh1201","n":"colin hines","g":0},{"u":"chandlerbowles","n":"asian man","g":0},{"u":"chantilly.hstea","n":"","g":1},{"u":"chantilly.jsa","n":"Jewish Student Association","g":1},{"u":"chantilly.secret.group","n":"Chantilly HS Tea","g":1},{"u":"chantillycultureclub","n":"CHS Culture Club","g":1},{"u":"charlestu","n":"查尔斯王子🐢","g":0},{"u":"chase_1230","n":"Chase Tuck","g":1},{"u":"chengabriel","n":"Gabriel Chen","g":0},{"u":"chloehoang26","n":"Chloe Hoang","g":0},{"u":"cho.g123","n":"Gregory Cho","g":1},{"u":"chocoandpancake","n":"© Choco & Pancake","g":2},{"u":"chohajun","n":"Ha Jun Cho","g":0},{"u":"chohaneul__","n":"Haneul Cho","g":0},{"u":"choijohn02","n":"John Choi","g":1},{"u":"choyoonji","n":"Yoon Ji","g":0},{"u":"chriskeemstar","n":"","g":0},{"u":"chrisvlin","n":"Chris lin","g":0},{"u":"chs.floor.tiles","n":"Chantilly Floor Tiles","g":1},{"u":"chs_memes.exe","n":"CHS Official Meme Account","g":1},{"u":"chs_windows","n":"the windows of Chantilly HS","g":1},{"u":"chsxctrackmemes","n":"CHS XC / Track Memes 🏃🏼‍♂️🏃‍♀️","g":1},{"u":"chungghlee","n":"Chung Hyun Lee","g":1},{"u":"cindyy.wuhoo","n":"cindy","g":0},{"u":"claire_and_julia","n":"Claire and Julia","g":1},{"u":"clen_hogan","n":"Glenn Hogan","g":1},{"u":"climate._.change","n":"POLLUTION IS BAD","g":1},{"u":"co_dells","n":"Marco D'Alessandro","g":2},{"u":"coachphilcas","n":"P-hill Warren","g":0},{"u":"cole.bohanon","n":"Cole Bohanon","g":0},{"u":"cole_tinsley2","n":"Cole Tinsley","g":0},{"u":"colejencks","n":"Cole Jencks","g":1},{"u":"colette.ttrinh","n":"","g":0},{"u":"collegefessing","n":"College Confessions","g":2},{"u":"colton_applegate","n":"Colton Applegate","g":1},{"u":"connor0mcintire","n":"","g":1},{"u":"connor_case.12","n":"Connor Case","g":2},{"u":"cpark517","n":"Conner Park","g":2},{"u":"crcatgeorgiatech","n":"CRC at Georgia Tech","g":2},{"u":"csaatvcu","n":"CSA@VCU","g":1},{"u":"cstayhumble","n":"C🏌️‍♂️","g":0},{"u":"cullen.kendrick","n":"Cullen Kendrick","g":0},{"u":"dang.cow","n":"Danny Cao","g":0},{"u":"dang_it_ho","n":"RAHHHH","g":0},{"u":"daniel.s.oman","n":"Daniel Öman","g":0},{"u":"daniel_fucking_sucks","n":"Daniel Zhang","g":1},{"u":"danielbbui","n":"daniel","g":0},{"u":"danielkim02_","n":"Daniel Kim","g":0},{"u":"danieltohti","n":"Daniel Tohti","g":0},{"u":"dante.liftsss","n":"D@v°n+€","g":1},{"u":"daquan","n":"Daquan","g":2},{"u":"darpitydarp","n":"Matt Liu","g":1},{"u":"datasciencegt","n":"Data Science @ Georgia Tech","g":2},{"u":"datenightwithmylove","n":"Date Inspiration✨","g":2},{"u":"david_lee823","n":"David Lee","g":0},{"u":"davidbae_","n":"David Bae","g":0},{"u":"dbasnightpk","n":"Derrick Basnight","g":0},{"u":"de.stineee","n":"destinee 🤍","g":1},{"u":"derek_kwon57","n":"Derek Kwon","g":0},{"u":"devntell","n":"deven","g":2},{"u":"dgautier_","n":"Drew","g":0},{"u":"dianee.vu","n":"diane vũ","g":0},{"u":"dillon_nguu","n":"Dylan Nguyen","g":0},{"u":"dillonguyen","n":"Dillon Nguyen","g":1},{"u":"dinosaurcouch","n":"dinosaur couch","g":2},{"u":"diwash.thapaliya","n":"Diwash Thapaliya","g":0},{"u":"dogsdesire","n":"Dogs & Puppies 🐶","g":2},{"u":"domoney20","n":"Do","g":0},{"u":"don.nguyen23","n":"Don Nguyen","g":1},{"u":"dorichard3","n":"Richard Do","g":0},{"u":"drpepperluvr_","n":"d ~<3","g":1},{"u":"dumbpl1ng","n":"","g":1},{"u":"dxvid.nguyen","n":"David Nguyen","g":0},{"u":"dxxanny","n":"Danny","g":1},{"u":"dylan_mcneal","n":"Dylan McNeal","g":0},{"u":"dylan_nguu","n":"dylan","g":0},{"u":"dylanjamesisme","n":"Dylan James","g":1},{"u":"dylannguyen15","n":"Dylan Nguyen","g":1},{"u":"dylansg0318","n":"Dylan San Gabriel","g":0},{"u":"edison_0308","n":"Edison Liao 廖偉良","g":0},{"u":"eds.in.brookswood","n":"Ed’s in Brookswood","g":2},{"u":"edyiyeti","n":"","g":0},{"u":"ekansh_.k","n":"ekansh kumar","g":0},{"u":"eliseemomo","n":"elise mccue 🪩","g":1},{"u":"emma.lindeblad","n":"Emma Lindeblad","g":0},{"u":"emmett_sullivan_","n":"","g":0},{"u":"emmettsanvil","n":"𝐄𝐦𝐦𝐞𝐭𝐭 𝐒𝐮𝐥𝐥𝐢𝐯𝐚𝐧","g":2},{"u":"engagegt","n":"The Center for Student Engagement @ Georgia Tech","g":2},{"u":"ericjeney","n":"Eric Jeney","g":0},{"u":"erik.longlastname","n":"Erik Scarlatescu","g":0},{"u":"ethan.hu05","n":"Ethan Hu","g":0},{"u":"ethan.m.mason","n":"Ethan Mason","g":0},{"u":"ethan.vertal","n":"Ethan Vertal","g":0},{"u":"ethanvnguyen","n":"Ethan Nguyen","g":1},{"u":"ethanxd0","n":"Ethan Do","g":2},{"u":"etsai20","n":"Eric Tsai","g":0},{"u":"evil.cate","n":"Evil Cat memes","g":2},{"u":"evuusan","n":"Evu ✄ ➳ツ ☼","g":0},{"u":"evuusanart","n":"Evu","g":2},{"u":"ewenhives","n":"","g":0},{"u":"faisal_fit","n":"Faisal","g":0},{"u":"faisalalseikhan","n":"Faisal Alseikhan","g":0},{"u":"filmseal","n":"FilmSeal","g":2},{"u":"fiona_earle","n":"Fiona Earle😃","g":0},{"u":"fishyvcnugget3k00","n":"Victor Phan","g":1},{"u":"floating__fairy","n":"Mary Katherine Orlando","g":1},{"u":"food.pundit","n":"Queen Pundit","g":0},{"u":"foodsinmyheart","n":"𝐇𝐞𝐥𝐞𝐧 & 𝐕𝐢𝐧𝐜𝐞 | DC • MD • NOVA Foodies","g":2},{"u":"franquito_medrano","n":"Franco Medrano","g":0},{"u":"fs.ryanwalker","n":"Ryan Walker","g":2},{"u":"g_mirzazadeh","n":"ghazal  غزل","g":0},{"u":"gabe.holmes_14","n":"Gabe Holmes","g":0},{"u":"galen.winsor","n":"Galen Winsor","g":0},{"u":"gatechdc","n":"Georgia Tech DC Alumni","g":2},{"u":"gatechengineers","n":"Georgia Tech College of Engineering","g":2},{"u":"gatechlife","n":"Georgia Tech SEWB","g":2},{"u":"gatechsaa","n":"GT Student Alumni Association","g":2},{"u":"gdsc.gt","n":"Google Developer Student Club @ GT","g":2},{"u":"georgiatech","n":"Georgia Tech","g":2},{"u":"georgiatechbookstore","n":"Barnes & Noble @ Georgia Tech","g":2},{"u":"georgiatechconfessions","n":"Georgia Tech Confessions","g":2},{"u":"georgiatechfb","n":"Georgia Tech Football","g":2},{"u":"georgiatechtsa","n":"Transfer Student Association","g":2},{"u":"glyzelleelaine","n":"not glizzy.","g":1},{"u":"graham_doggo","n":"Graham 🐶","g":0},{"u":"growinupviet","n":"Growing Up Vietnamese","g":2},{"u":"gt.affirmations","n":"GT Affirmations","g":2},{"u":"gt_2024","n":"Product Reviewer","g":2},{"u":"gt_career_center","n":"Georgia Tech Career Center","g":0},{"u":"gt_roundnet","n":"Ramblin’ Roundnet","g":2},{"u":"gt_tutors","n":"GT Tutoring & Academic Support","g":2},{"u":"gtaasa","n":"Georgia Tech AASA","g":2},{"u":"gtadmission","n":"Georgia Tech Admission","g":0},{"u":"gtalumni","n":"Georgia Tech Alumni","g":0},{"u":"gtathletics","n":"Georgia Tech Yellow Jackets","g":2},{"u":"gtbarstool","n":"Barstool Georgia Tech","g":2},{"u":"gtcompsports","n":"GT Competitive Sports","g":2},{"u":"gtcomputing","n":"Georgia Tech College of Computing","g":2},{"u":"gtcomputing_careers","n":"GT Computing Career Services","g":2},{"u":"gtcomputingoec","n":"GT College of Computing","g":2},{"u":"gtcounselingcenter","n":"Georgia Tech Counseling Center","g":2},{"u":"gtcoverage","n":"Georgia Tech Coverage","g":2},{"u":"gteesbees","n":"gtee’s bees","g":2},{"u":"gtlibrary","n":"Georgia Tech Library","g":2},{"u":"gtmensvb","n":"GT Men’s Club Volleyball","g":2},{"u":"gtoue","n":"Office of Undergraduate Education","g":2},{"u":"gtsailing","n":"Georgia Tech Sailing Club","g":2},{"u":"gtscpc","n":"Georgia Tech SCPC","g":2},{"u":"gtseekdiscomfort","n":"Seek Discomfort @ GT 🐝","g":2},{"u":"gtstucen","n":"Georgia Tech Student and Campus Event Centers","g":2},{"u":"gtstudliving","n":"Studliving","g":2},{"u":"gtvolleyball","n":"Georgia Tech Volleyball","g":2},{"u":"gtwellnesscenter","n":"Georgia Tech Wellness Empowerment Center","g":2},{"u":"gwbaseball1","n":"GW Baseball","g":2},{"u":"h.harris78","n":"Hunter🌩","g":0},{"u":"h__rui711","n":"Harry Ruì","g":0},{"u":"hacklytics","n":"Hacklytics 2024: Around the World 🌎✈️","g":2},{"u":"haitham.sak","n":"Haitham Sakallah","g":0},{"u":"handshakebets","n":"Handshake Bets","g":2},{"u":"hanh_nguyen1973","n":"Hanh Nguyen","g":0},{"u":"hankgreen","n":"Hank Green","g":2},{"u":"hannah__wagner","n":"нαииαн","g":1},{"u":"hannah_rose_me","n":"Follow main @xhannah.wagnerx","g":1},{"u":"hannahpeacelove","n":"👋","g":1},{"u":"harishrajan_","n":"Harish Rajan","g":0},{"u":"harrisotran","n":"harrison tran","g":0},{"u":"harry.crocker3","n":"Harry Crocker","g":0},{"u":"harrymack","n":"Harry Mack","g":2},{"u":"harrypottertxtposts","n":"My Harry Potter obsession is…","g":2},{"u":"he.larious","n":"Helena","g":0},{"u":"helen.zhu.5855","n":"Helen Zhu","g":1},{"u":"heygeoffrey","n":"Geoffrey Nguyen","g":1},{"u":"highspeeddining","n":"High Speed Dining","g":2},{"u":"hiro.yosh","n":"Hiro Yoshizaki","g":1},{"u":"ho.kingston","n":"kingston","g":0},{"u":"hoeveria","n":"Bitchass Gnome","g":2},{"u":"hong_y_02","n":"Hong Yang","g":0},{"u":"hot_soup_drinker","n":"Ben Tieu","g":0},{"u":"houseofgaming","n":"House Of Gaming","g":2},{"u":"huh.zack","n":"Zack","g":2},{"u":"hunch0a","n":"Zoobi","g":1},{"u":"hunnagbeats","n":"Hunna G","g":2},{"u":"ianna.1010","n":"ianna","g":1},{"u":"imdjhuynh","n":"","g":0},{"u":"is.art.real","n":"sheoli’s art","g":0},{"u":"isaac__k1m","n":"Isaac Kim","g":0},{"u":"isaaclcaasi","n":"Isaac Lyu","g":1},{"u":"its_gajo","n":"Nathan Gajo","g":0},{"u":"itsmelukep","n":"Luke portofe","g":0},{"u":"itsmolly.rose","n":"Molly Hart","g":0},{"u":"itstumblrhumor","n":"Tumblr Humor","g":2},{"u":"j.lambert1","n":"Josh Lambert","g":0},{"u":"j.ustinpham","n":"Justin Pham","g":0},{"u":"jack.massingill","n":"Jack Massingill","g":0},{"u":"jackconne11","n":"Jack Connell","g":1},{"u":"jah_north","n":"Jonah","g":0},{"u":"jai.pise","n":"Jai Pise","g":0},{"u":"jake______r","n":"Jake R","g":0},{"u":"jalen.mcb","n":"Jalen Cauley","g":1},{"u":"japcol02","n":"Jalen Coleman","g":0},{"u":"jasman1080p","n":"Jason Hagerman Jr.","g":1},{"u":"jason_kimm23","n":"Jason Kim","g":1},{"u":"jasonhsiao99","n":"Jason “J-Boog” Hsiao","g":0},{"u":"jasonnguyener","n":"Jason Nguyen","g":0},{"u":"jasontheween","n":"Jason WEEN","g":2},{"u":"javeria.zulfqar","n":"java","g":0},{"u":"javid.bb","n":"Javid Bakhtiani","g":0},{"u":"jaya.sreee","n":"Jayasree Allam","g":1},{"u":"jaycrickcrack","n":"Jason Lei","g":1},{"u":"jdbreazeale","n":"JD Breazeale","g":0},{"u":"jdog_20202","n":"Jdog","g":0},{"u":"je.camarella","n":"Jerry","g":0},{"u":"jean_torres5","n":"Jean Torres","g":0},{"u":"jeetster_rao","n":"Ajeet Rao","g":2},{"u":"jeffjacksonnc","n":"Jeff Jackson","g":2},{"u":"jenny.n.tran","n":"Jenny Tran","g":1},{"u":"jerryjhlee","n":"Jerry Lee","g":2},{"u":"jerrys.dor17os","n":"Jareth McAlister","g":0},{"u":"jessicaa.liii","n":"jessica li","g":1},{"u":"jewelry_by_colette","n":"Colette","g":1},{"u":"jiminy.cricket9","n":"","g":0},{"u":"jkinb1gd0ng","n":"Drizzy Jkin","g":1},{"u":"jla_han","n":"julia han","g":1},{"u":"jocelyn.lii","n":"","g":1},{"u":"joechoii","n":"Joe Choi","g":1},{"u":"joerauth","n":"Joe Rauth","g":2},{"u":"jonah_northern","n":"Jonah Northern","g":0},{"u":"jonathan_durandiaz","n":"Jonathan Duran-Diaz","g":0},{"u":"jonathann.huang","n":"Jonathan Huang","g":0},{"u":"jordyysantana","n":"Jordy Santana","g":0},{"u":"joseph_masson_","n":"Joseph Masson","g":0},{"u":"joshdhaug23","n":"Josh","g":0},{"u":"joshhtruong","n":"Josh Truong","g":0},{"u":"jpham_26","n":"Justin Pham","g":1},{"u":"jsan213","n":"Julian Jan Santos","g":0},{"u":"jspencer_38","n":"Jack (Quinn) Spencer","g":0},{"u":"julia_gusmati","n":"julia giovanna gusmati","g":1},{"u":"jun.leee","n":"Jun Lee","g":0},{"u":"junie_fanclub","n":"","g":0},{"u":"justin.ngoo","n":"Justin Ngô⁷","g":0},{"u":"justin__brady","n":"Justin Brady","g":1},{"u":"justin_h_park","n":"Justin Park","g":1},{"u":"justinnguy.en","n":"Justin Nguyen","g":0},{"u":"justintime7500","n":"Justin Luy","g":0},{"u":"jxisna1","n":"Duong","g":0},{"u":"k3eth","n":"Keith Orr","g":1},{"u":"k80lew1s","n":"kaitlin","g":1},{"u":"k_nnguyenn","n":"Khang Nguyen","g":0},{"u":"kaavimusic_","n":"Kaavya Parikh","g":1},{"u":"kaavyap16","n":"","g":0},{"u":"kamran.af","n":"kamran | كامران","g":0},{"u":"kanav.b","n":"Kanav Bhardwaj","g":0},{"u":"karl_lobrin","n":"Karl Lobrin","g":0},{"u":"katie.tsai","n":"katie tsai","g":0},{"u":"katielatham.3","n":"Katie Latham","g":1},{"u":"katy.is.a.unicorn_","n":"Katy Cat😻","g":1},{"u":"keaton.boodlal","n":"Keaton Boodlal","g":0},{"u":"kelly_trann","n":"Kelly Tran","g":0},{"u":"kellyy.leeee","n":"kelly le","g":0},{"u":"kendra.bush2","n":"kendra bush","g":1},{"u":"kenneth6271","n":"Kenneth","g":1},{"u":"kenny_bitner_","n":"Kenny bitner","g":0},{"u":"kentadepalma","n":"Kenta DePalma","g":0},{"u":"kerul.mathur","n":"Kerul Mathur","g":1},{"u":"kevan15535","n":"Kevin Phan","g":1},{"u":"kevin_being_kevin","n":"Kevin Nguyen","g":1},{"u":"kevin_newguyin","n":"Kevin Newguyin","g":0},{"u":"kevinn.doann","n":"Kevin Doan","g":0},{"u":"khang_eats","n":"Khang!","g":0},{"u":"kietnguyen0116","n":"Kiet Nguyen","g":1},{"u":"kiki.wong","n":"미나","g":0},{"u":"kimberlyscott2013","n":"Kimberly Scott","g":0},{"u":"kms_dukie","n":"Karen Sahebzadah","g":0},{"u":"knguyen0904","n":"Katherine Nguyen","g":0},{"u":"kntran04","n":"Ky Tran","g":0},{"u":"koolkid_khan","n":"Muhib Khan","g":0},{"u":"krishigan_y","n":"Krishigan Yuvaraj","g":0},{"u":"krishiganee","n":"Krishigan Yuvaraj","g":1},{"u":"kt_kory","n":"Kory T","g":1},{"u":"kush.enkhtur","n":"Enkhkhuslen Enkhtur","g":0},{"u":"kxtphan","n":"","g":0},{"u":"kxvphxn","n":"K","g":0},{"u":"kyle.m.7","n":"Kyle Merritt","g":2},{"u":"kyle_beene","n":"Kyle Beene","g":1},{"u":"kyle_pagui","n":"","g":1},{"u":"kyles.project.dump","n":"Kyle","g":1},{"u":"lambertspamzzz","n":"Lambert.spamzzz","g":1},{"u":"lawrwal","n":"larence","g":0},{"u":"lbsssneakers","n":"LBSS Sneakers","g":1},{"u":"lealexlee","n":"Alex Lee","g":0},{"u":"leo_clougherty","n":"Leo Clougherty","g":1},{"u":"lewii.vu","n":"lewis","g":0},{"u":"liamthemoriarty","n":"Liam Moriarty","g":0},{"u":"life.with.a.landcloud","n":"Charishma Cohen + Boomer ☁️","g":2},{"u":"lil_win10","n":"John N","g":0},{"u":"liliannguyeen","n":"Lilian Nguyen","g":0},{"u":"lime.not.lemon","n":"Liem Nguyen","g":1},{"u":"lisettehoang","n":"Lisette Hoang","g":0},{"u":"livelikesteven","n":"Steven Nguyen","g":0},{"u":"livvdinh","n":"Olivia Dinh","g":0},{"u":"loanlindeblad","n":"Loan Nguyen Lindeblad","g":0},{"u":"lolesports","n":"LoL Esports","g":2},{"u":"lovekoala.88000","n":"Bao","g":1},{"u":"luisinagil_","n":"Luisina Gil","g":0},{"u":"lxshala","n":"LaShala ;)","g":1},{"u":"m.a.x_james_","n":"Maximus James","g":1},{"u":"m_harp21","n":"Matt Harp","g":0},{"u":"madeleinelebeau","n":"Madeleine LeBeau","g":1},{"u":"madisonb.e","n":"Madison","g":0},{"u":"maggienguyen","n":"Don Quixote","g":0},{"u":"mahervil","n":"Maher Vilone","g":0},{"u":"malspabatsanta","n":"Malcolm Neifeld","g":1},{"u":"man.gup","n":"Mannit Gupta","g":0},{"u":"manas_keth","n":"Manas Kethireddy","g":0},{"u":"mapleandmortycorgi","n":"Maple and Morty","g":2},{"u":"marcellolalocoronado","n":"Marcello Eduardo","g":0},{"u":"mariana.rocioo","n":"mari🪴","g":1},{"u":"marisa.bausone","n":"Marisa Bausone","g":0},{"u":"marrtin_hoang","n":"Martin Hoang","g":0},{"u":"martn.nguyen","n":"Martin :))","g":0},{"u":"mary.orlando26","n":"Mary  Orlando","g":1},{"u":"mat.s.park","n":"Matthew Park","g":0},{"u":"matt_mttran","n":"Matthew Tran","g":0},{"u":"mattbharper","n":"Matt Harper","g":0},{"u":"matthew.congiusta","n":"Matthew Congiusta","g":0},{"u":"matthuang2002","n":"Matthew Huang","g":0},{"u":"maxko02","n":"Max Ko","g":0},{"u":"maxthemeatguy","n":"Max Greb | MaxTheMeatGuy","g":2},{"u":"maynaire_w","n":"Maynaire Wang","g":1},{"u":"mchitre_","n":"Mark","g":0},{"u":"mdaniel.nguyen","n":"Daniel Nguyen","g":0},{"u":"meashew8329","n":"Matthew Tran","g":0},{"u":"mechami_","n":"nico rivera","g":0},{"u":"megan__fanpage","n":"Keaton💋","g":1},{"u":"megatron.xox","n":"Dear Meghan","g":1},{"u":"melo.ysm","n":"","g":0},{"u":"meloddee","n":"Melody Doan","g":0},{"u":"mensvballclubvcu","n":"VCU Men’s Volleyball Club","g":1},{"u":"michaeld3768","n":"Michael Doan","g":1},{"u":"michaelpham825","n":"Michael Pham","g":0},{"u":"miles_burgess","n":"Miles Burgess","g":2},{"u":"milk_love_brownie","n":"Milk_love_brownie","g":2},{"u":"millers.members.only","n":"New to Bea, love her already","g":1},{"u":"minh_t7","n":"Minh Tran","g":0},{"u":"minht.ha","n":"minhtrung ha","g":1},{"u":"mintathletics","n":"Mint Athletic Performance","g":2},{"u":"mobalyticstft","n":"Mobalytics Teamfight Tactics","g":2},{"u":"moomoomoo_mee","n":"","g":1},{"u":"mr.man_21","n":"My Name Quan","g":1},{"u":"mr_bartolomeo_","n":"Sam B","g":0},{"u":"mulanp_","n":"Malav Patel","g":0},{"u":"n.talia14","n":"Nat","g":0},{"u":"nahida786","n":"Nahida","g":0},{"u":"namwoooooo","n":"namwoo","g":1},{"u":"nancy.ule","n":"","g":0},{"u":"nandiniramkumar","n":"Nandini Ramkumar","g":1},{"u":"nanduri04","n":"Rohan Nanduri","g":0},{"u":"nathan._lai","n":"Nathan Lai","g":0},{"u":"neel.mandapati","n":"Neel Mandapati","g":0},{"u":"neighboraaron","n":"Aaron Lin","g":1},{"u":"nelscwilliams","n":"Nels Williams","g":1},{"u":"nextshark","n":"NextShark","g":2},{"u":"nguyen_austin_","n":"Austin Nguyen","g":0},{"u":"nhuwhy","n":"Nhu-Y 🐚","g":0},{"u":"ni.na.nguyen","n":"Nina Nguyen","g":0},{"u":"nicholletvo","n":"nicholle","g":0},{"u":"nicknguyennn","n":"","g":0},{"u":"nivedha_n02","n":"Nivedha","g":0},{"u":"noah_clary_","n":"Noah Clary","g":0},{"u":"noahdvdbrown","n":"Noah Brown","g":1},{"u":"noezybuckets","n":"NOEZYBUCKETS | Volleyball","g":2},{"u":"nora.butler514","n":"Nora Butler","g":2},{"u":"notiepos","n":"Justin Ngô","g":1},{"u":"notkanav","n":"K₩","g":0},{"u":"notorious_n.a.i","n":"","g":0},{"u":"notused1221","n":"","g":1},{"u":"nowthisentertainment","n":"NowThis Entertainment","g":2},{"u":"nowthisimpact","n":"NowThis Impact","g":2},{"u":"nrezhang","n":"Henry Zhang","g":0},{"u":"nwalkerdella","n":"Nancy Lee Walker","g":0},{"u":"o.taqi99","n":"Omran Taqi","g":0},{"u":"obx","n":"Outer Banks","g":2},{"u":"oldrowgatech","n":"Old Row Georgia Tech","g":2},{"u":"omgitskiet","n":"kenny","g":0},{"u":"onlygtstudentsfollowback","n":"ONLY GEORGIA TECH STUDENTS FOLLOW BACK!","g":2},{"u":"orangeboy_73","n":"Patrick Mountcastle","g":1},{"u":"owen.jones_","n":"Owen Jones","g":0},{"u":"p.ropose","n":"Proposals 👰🏻 Gender Reveal 🎁","g":2},{"u":"palash.shah","n":"Palash Shah","g":1},{"u":"pappyho","n":"Corey","g":0},{"u":"parker_agan","n":"Parker Agan","g":1},{"u":"patrick__guo","n":"Patrick Guo","g":0},{"u":"paulcoww","n":"paul","g":1},{"u":"pbroome88","n":"Paul Broome","g":0},{"u":"pet_foolery","n":"Ben Hed","g":2},{"u":"peter_hongg","n":"Peter Hong","g":2},{"u":"phocyclo","n":"Pho Cyclo","g":0},{"u":"pickanameben","n":"Ben","g":0},{"u":"pnavsingh","n":"Pranav🪡","g":0},{"u":"pooja_and_rushil","n":"Rushil Suresh & Pooja Loga","g":1},{"u":"practically_satan_","n":"Desta Star","g":2},{"u":"praharsh_patel","n":"Praharsh Patel","g":0},{"u":"prak.cassh","n":"Pcash","g":0},{"u":"prakash.jawahar","n":"Prakash","g":0},{"u":"pranavmanivannan","n":"pranav","g":0},{"u":"pranavrathore00","n":"Pranav Rathore","g":1},{"u":"prithvikin","n":"Prithvi Kinariwala","g":0},{"u":"pritiyadavv","n":"Prítí🤎","g":0},{"u":"priya.rachakonda","n":"Priya Rachakonda","g":1},{"u":"ptslammer4","n":"Sam Brunner","g":1},{"u":"qlam55","n":"Quang Lam","g":0},{"u":"quannvo","n":"Quan","g":0},{"u":"r00h4n_","n":"rohan palle","g":1},{"u":"rabbertanimations","n":"Rabbert","g":2},{"u":"raghav_maddula","n":"Raghav Maddula","g":0},{"u":"ramble1885","n":"Ramble.","g":2},{"u":"rambling_wrecking_news","n":"","g":2},{"u":"ramblinreckclub","n":"Ramblin' Reck Club","g":2},{"u":"raoyashyr5","n":"Yash Rao","g":0},{"u":"raychulbro","n":"Mala fama, buena vida","g":1},{"u":"raygun8989","n":"Rachael Gunn","g":0},{"u":"rayjlau","n":"Ray Lau","g":2},{"u":"razasoffice","n":"RazasOffice","g":2},{"u":"redcupgt","n":"Red Cup Georgia Tech","g":2},{"u":"redcupnews","n":"RedCup News","g":2},{"u":"reecha.v9","n":"Richard Phan","g":0},{"u":"rehan_a_0814","n":"Rehan Ahmed","g":0},{"u":"revav18","n":"Reva Vijayn","g":0},{"u":"richardnguyenn","n":"Richard Nguyen","g":0},{"u":"richardr29262","n":"Richard Rex","g":0},{"u":"richtrosales","n":"Rich Rosales","g":2},{"u":"ricky_dong9","n":"Ricky Dong","g":2},{"u":"rjdalusung","n":"RJ Dalusung","g":0},{"u":"rjthehottie","n":"","g":0},{"u":"robingan_","n":"Robin Gan","g":2},{"u":"roh_nnair","n":"Rohan Nair","g":0},{"u":"rohanpatel_03","n":"Rohan Patel","g":0},{"u":"rohit.varadhan","n":"Rohit V","g":0},{"u":"ronitbh1","n":"Ronit Bhansali","g":1},{"u":"route50dental","n":"Route50dental","g":0},{"u":"rudra.s_","n":"rudra sheth","g":1},{"u":"rushil_s.20","n":"Rushil Suresh","g":1},{"u":"rushils.photo","n":"Rushil Suresh","g":1},{"u":"ryan.knguyen","n":"Ryan Nguyen","g":0},{"u":"ryan.thomas.lynch","n":"Ryan Thomas Lynch","g":2},{"u":"ryan_boehlert","n":"Ryan Boehlert","g":0},{"u":"ryan_j_flores","n":"Ryan J. Flores","g":0},{"u":"ryan_vuong04","n":"ryan","g":0},{"u":"ryandinnh","n":"ryan dinh","g":1},{"u":"ryankellycomedy","n":"Ryan Kelly","g":2},{"u":"ryanshunke","n":"Ryan Shunke He","g":1},{"u":"ryantwomeyy","n":"Ryan Twomey","g":2},{"u":"s._.panghal","n":"Sameer Panghal","g":0},{"u":"s.soyy","n":"soy wong","g":1},{"u":"saada7553","n":"Saad Ata","g":0},{"u":"saadali1117","n":"Saad Ali","g":0},{"u":"sabentooth","n":"Clark #7","g":0},{"u":"sabzzxxx","n":"Sabrina","g":0},{"u":"sachin.manivannan","n":"Sachin Manivannan","g":1},{"u":"sachin_manivannan","n":"Sachin Manivannnan","g":0},{"u":"saffasaturdays","n":"","g":1},{"u":"sahilvora_25","n":"Sahil Vora","g":0},{"u":"sakky1012","n":"Saketh Addagarla","g":1},{"u":"sakura_rose_","n":"Brooke Jameson","g":0},{"u":"sam.winalski","n":"Sam","g":0},{"u":"sambapathak","n":"SAMBA (साम्बा)","g":0},{"u":"sambentley","n":"Sam | Sustainable Living","g":2},{"u":"samsaham21","n":"Sam Fitzhugh","g":1},{"u":"saqib.af","n":"Saqib","g":0},{"u":"saqibsaurus","n":"saqib","g":0},{"u":"sarah_campbell_","n":"sarah","g":1},{"u":"sarahiahmed","n":"Sarah","g":1},{"u":"sasha.cello","n":"Alexandra (Sasha) Lukashuk","g":1},{"u":"sat_on_a_wik_fanpage","n":"Satwik Fanpage","g":1},{"u":"satwik.tad","n":"Satwik Tadikamalla","g":0},{"u":"saumithg22","n":"Saumith Gundapuneedi","g":1},{"u":"sbecks13","n":"SGB","g":0},{"u":"scottanderson5451","n":"Scott Anderson","g":0},{"u":"scrandyy","n":"andy","g":0},{"u":"sebastiannguyen19","n":"Sebastian Nguyen","g":0},{"u":"see.thesy","n":"Phat Loaf","g":1},{"u":"seedgatech","n":"GT SEED 🌱","g":2},{"u":"serena_gulajan","n":"","g":1},{"u":"sereniedee","n":"Serena Doan","g":0},{"u":"share_it_tilly_","n":"Chantilly","g":1},{"u":"sheolele","n":"Sheoli Lele","g":0},{"u":"shikhakin","n":"👁 shikha 👁","g":1},{"u":"shozzz7","n":"Shoma Zafar","g":1},{"u":"shreya.arun","n":"shreya","g":0},{"u":"shreyaatripathy","n":"Shreya Tripathy","g":1},{"u":"shreyas.namp","n":"Shreyas","g":0},{"u":"shruti_elango","n":"shruti elango","g":0},{"u":"sid.tickle","n":"sid tickle","g":0},{"u":"sidsu_","n":"Sid Su","g":0},{"u":"sijalchudal","n":"Sijal Chudal","g":0},{"u":"sillyeeyee","n":"alex spam","g":0},{"u":"simonlindeblad","n":"Simon Lindeblad","g":0},{"u":"sitcomfinest","n":"SitCom Finest","g":2},{"u":"sixpackgt","n":"Six Pack Georgia Tech","g":2},{"u":"skiclubgatech","n":"Ski & Snowboard Club at GT","g":2},{"u":"skyauraman","n":"","g":1},{"u":"slajmonsfinaprivatakonto","n":"Slajmon","g":0},{"u":"sleepy_time_medicine_","n":"","g":0},{"u":"slightly_broke_mane","n":"Jack B","g":0},{"u":"slirvivi","n":"V","g":1},{"u":"sluio","n":"Sam Baugher","g":1},{"u":"smile.gatech","n":"SMILE!","g":2},{"u":"smithuin_","n":"Mathuin Smith","g":1},{"u":"sonakshirout","n":"","g":1},{"u":"sonia.m25","n":"Sonia M💋","g":0},{"u":"sopeiton","n":"Also Justin Ngo","g":0},{"u":"sophie_jjjjj","n":"Soph","g":1},{"u":"soren.iverson","n":"Soren Iverson","g":2},{"u":"spausum","n":"Pau","g":0},{"u":"sportscenter","n":"SportsCenter","g":2},{"u":"srimanth.t","n":"Srimanth","g":1},{"u":"srirambasavaraju","n":"Sriram Basavaraju","g":1},{"u":"sriyabasavaraju","n":"Sriya Basavaraju","g":1},{"u":"ssamjang_kbbq","n":"SSamJang Korean BBQ","g":2},{"u":"steeveeeyy","n":"Songyuan Liu","g":0},{"u":"steviehatss","n":"Steven Hatano","g":0},{"u":"stevoon.naguwin","n":"Measlystevie","g":1},{"u":"stucchid2","n":"David Stucchi 🇩🇴🇮🇹","g":0},{"u":"surya_kommoju","n":"Surya Kommoju","g":0},{"u":"swindeller","n":"Ryan S","g":1},{"u":"syaam_khandaker","n":"","g":0},{"u":"sydney.tucker","n":"sydney","g":1},{"u":"syringaj","n":"lilac","g":2},{"u":"sytevenh","n":"steven y","g":0},{"u":"t_davenport7","n":"Tro Davenport","g":0},{"u":"tanyacharan","n":"Tanya Charan","g":0},{"u":"tarunanbu.22","n":"Tarun","g":0},{"u":"tatiyanna.m","n":"tati 🐌","g":0},{"u":"taylorpoletis","n":"✰Taylor Leigh✰","g":0},{"u":"tchoe711","n":"Tenzin Choerab","g":1},{"u":"tdonipati","n":"Tarun Donipati","g":1},{"u":"techdining","n":"Tech Dining","g":2},{"u":"techroastshow","n":"Socially Inept","g":2},{"u":"techsquare.times","n":"The Tech Square Times","g":2},{"u":"tejasvi_d","n":"Tejasvi","g":0},{"u":"terranagai","n":"Terra Nagai","g":0},{"u":"tfitzhugh_","n":"Tommy Fitzhugh","g":1},{"u":"thatsthekids","n":"That’s the kids!","g":2},{"u":"the_content_machine","n":"Content Machine","g":2},{"u":"the_hannah.s","n":"Hannah&Hannah","g":1},{"u":"theakhfromtheblock","n":"Shaan Vohra","g":0},{"u":"thedkfanclub","n":"DK’s Fan Club","g":0},{"u":"thefumiabe","n":"Fumi Abe","g":2},{"u":"thekdawg101","n":"Kanav Wason","g":0},{"u":"theofficialkingdante","n":"D@v¤Ωt€","g":1},{"u":"therealdalewalker","n":"Dale Walker","g":0},{"u":"therealpixelbagel","n":"Ruby","g":0},{"u":"thesagarparekh","n":"Sagar Parekh","g":2},{"u":"theuglysideoftumblr","n":"theuglysideoftumblr","g":2},{"u":"think_like_a_boss.co","n":"THINK LIKE A BOSS ®","g":2},{"u":"thisistunam","n":"Тu-Nam Nguyen","g":1},{"u":"thomas21tran","n":"Thomas Tran","g":1},{"u":"thuy1950","n":"Thuy Bui","g":0},{"u":"tiffanyfungus","n":"tiffany fung","g":1},{"u":"tillycompliments","n":"Chantilly Compliments","g":1},{"u":"tim_thom_","n":"Tim Thomas","g":0},{"u":"timotheytrann","n":"Tim :)","g":1},{"u":"tishnutheturtle","n":"Vishnu","g":0},{"u":"tjsnowz","n":"TJ Fernanders","g":0},{"u":"tmmontoya","n":"Tristan Montoya","g":1},{"u":"tobeyphan","n":"Tobey Phan","g":1},{"u":"tobias_nilzzon","n":"Tobias Nilsson","g":0},{"u":"tokuchi.toyoshima","n":"Tokuchi","g":0},{"u":"tommy.le.90","n":"Tommy Le","g":2},{"u":"tpark1218","n":"Tony Park","g":0},{"u":"tran.stanley","n":"Stanley Tran","g":0},{"u":"truongjosh1","n":"Josh Truong","g":2},{"u":"tt11hdvn","n":"Thang Tien 11","g":1},{"u":"ttuttle315","n":"TJ Tuttle","g":2},{"u":"tubbynugget","n":"Tubby Nugget®","g":2},{"u":"tvu15","n":"Timmy Vu","g":0},{"u":"ugotacollegetech","n":"","g":2},{"u":"uhallison","n":"Allison Ly","g":0},{"u":"uncle.iroh.quotes","n":"The Dragon of the West🐉🔥","g":2},{"u":"unhappy.cat","n":"account dead? or just lurking? fuck you!","g":1},{"u":"updatingshow","n":"UpDating","g":2},{"u":"upsdogs","n":"UPS Dogs","g":2},{"u":"vanessaloraine322","n":"Vanessa Scola","g":1},{"u":"varshak.11","n":"varsha","g":1},{"u":"vcu.2025","n":"Virginia Commonwealth C/O 2025","g":1},{"u":"vcu_eng","n":"VCU College Of Engineering","g":1},{"u":"vdshetty","n":"Varish Devarashetty","g":0},{"u":"veronicacwong","n":"ronnie wong","g":1},{"u":"vickie._","n":"vickie ◡̈","g":0},{"u":"victor_cama132","n":"Victor Cama","g":0},{"u":"victoriappham","n":"Victoria","g":0},{"u":"viewsfromsix8","n":"VIEWS FROM SIX8™","g":2},{"u":"vijayrudraraju","n":"","g":1},{"u":"vik__dias","n":"Vikram Dias","g":0},{"u":"vikramchodapaneedi","n":"Vikram Chodapaneedi","g":0},{"u":"vincent_vvuong","n":"Vincent","g":0},{"u":"vincenttbui","n":"Vincent Bui","g":0},{"u":"vinhhnguyen","n":"Vinh Nguyen","g":0},{"u":"virginiaphuong","n":"Virgie","g":0},{"u":"vishnu_marella_","n":"vishnu marella 🦥","g":0},{"u":"vivekiyer.20","n":"Vivek","g":1},{"u":"viviaannguyeen","n":"Vivian Nguyen","g":0},{"u":"vrajdesai426","n":"Vraj Desai","g":0},{"u":"vsavcu","n":"VSA at VCU","g":1},{"u":"vuunguuyen","n":"vu","g":0},{"u":"wasted","n":"WASTED","g":2},{"u":"wesleydlu","n":"Wesley Lu","g":0},{"u":"what.the_fung","n":"Jonathan Fung","g":1},{"u":"williamm.pakk","n":"William Pak","g":0},{"u":"wonsulting","n":"Wonsulting | #GetYouAJob2024💡","g":2},{"u":"world","n":"BuzzFeed World","g":2},{"u":"wreckreports","n":"Wreck Reports","g":2},{"u":"wxu_1248","n":"will","g":0},{"u":"x.jtc","n":"Kai 🉐","g":0},{"u":"xrlee024","n":"","g":1},{"u":"yaswante24","n":"Yash Ejjagiri","g":0},{"u":"yehun1","n":"yehun (samuel)","g":0},{"u":"yi_jason11","n":"Jason Yi","g":0},{"u":"yiminglin__","n":"Yiming Lin","g":2},{"u":"yoonkang19","n":"Yoon","g":2},{"u":"your.richbff","n":"Vivian Tu | Your Rich BFF","g":2},{"u":"yourtypicalgiggle","n":"rapunzel's meme collection :)","g":2},{"u":"z.y.a.d_","n":"Zyad Elgohary","g":2},{"u":"zachjustice","n":"Zach Justice","g":2},{"u":"zachsrelics","n":"Zach Markers 🖍","g":1},{"u":"zeroxxanh","n":"Anh Ha","g":1},{"u":"ziad__","n":"","g":2},{"u":"zoe_varacalli","n":"Zoe","g":1},{"u":"zr_mer","n":"Zaria","g":0},{"u":"zyprr_","n":"Zoe Phan","g":0}];
+const GROUPS = [
+  { label: "Mutual", color: "#16a34a", r: 150 },
+  { label: "Follower only", color: "#2563eb", r: 260 },
+  { label: "Following only", color: "#d97706", r: 370 },
+];
+const CX = 500, CY = 500;
+const svg = document.getElementById("net");
+const NS = "http://www.w3.org/2000/svg";
+const tip = document.getElementById("tooltip");
+const detail = document.getElementById("detail");
+const matchesEl = document.getElementById("matches");
+
+function hash(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h / 4294967295;
+}
+
+// deterministic layout: sorted within group, even angles, tiny hash jitter
+const byGroup = [[], [], []];
+USERS.forEach(u => byGroup[u.g].push(u));
+const nodes = [];
+byGroup.forEach((list, g) => {
+  const n = list.length;
+  list.forEach((u, i) => {
+    const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+    const jr = (hash(u.u) - 0.5) * 14;
+    const ja = (hash(u.u + ":a") - 0.5) * (Math.PI * 2 / n) * 0.7;
+    const r = GROUPS[g].r + jr;
+    const ang = a + ja;
+    nodes.push({ ...u, x: CX + r * Math.cos(ang), y: CY + r * Math.sin(ang), g });
+  });
+});
+
+const spokes = document.createElementNS(NS, "g");
+const dots = document.createElementNS(NS, "g");
+nodes.forEach(nd => {
+  const ln = document.createElementNS(NS, "line");
+  ln.setAttribute("x1", CX); ln.setAttribute("y1", CY);
+  ln.setAttribute("x2", nd.x); ln.setAttribute("y2", nd.y);
+  ln.setAttribute("stroke", GROUPS[nd.g].color);
+  ln.setAttribute("class", "spoke");
+  ln.dataset.g = nd.g;
+  spokes.appendChild(ln);
+  const c = document.createElementNS(NS, "circle");
+  c.setAttribute("cx", nd.x); c.setAttribute("cy", nd.y); c.setAttribute("r", 3.2);
+  c.setAttribute("fill", GROUPS[nd.g].color);
+  c.setAttribute("class", "node");
+  c.dataset.g = nd.g; c.dataset.u = nd.u;
+  c.addEventListener("mousemove", e => {
+    tip.style.display = "block";
+    tip.style.left = (e.clientX + 12) + "px";
+    tip.style.top = (e.clientY + 12) + "px";
+    tip.textContent = (nd.n ? nd.n + " · " : "") + "@" + nd.u + " — " + GROUPS[nd.g].label;
+  });
+  c.addEventListener("mouseleave", () => tip.style.display = "none");
+  c.addEventListener("click", () => {
+    detail.innerHTML = "<b>" + (nd.n ? nd.n + " " : "") + "@" + nd.u + "</b> — " +
+      GROUPS[nd.g].label + ". 1 hop from Namkhang, 2 hops from everyone else in this graph.";
+  });
+  dots.appendChild(c);
+});
+
+// centre
+const cc = document.createElementNS(NS, "circle");
+cc.setAttribute("cx", CX); cc.setAttribute("cy", CY); cc.setAttribute("r", 26);
+cc.setAttribute("fill", "#191919"); cc.setAttribute("stroke", "#fff"); cc.setAttribute("stroke-width", 3);
+const ct = document.createElementNS(NS, "text");
+ct.setAttribute("x", CX); ct.setAttribute("y", CY + 6);
+ct.setAttribute("text-anchor", "middle"); ct.setAttribute("fill", "#fff");
+ct.setAttribute("font-size", "18"); ct.setAttribute("font-weight", "800");
+ct.textContent = "N";
+svg.appendChild(spokes); svg.appendChild(dots); svg.appendChild(cc); svg.appendChild(ct);
+
+// group filter chips
+document.querySelectorAll(".chip").forEach(chip => {
+  chip.addEventListener("click", () => {
+    chip.classList.toggle("off");
+    const g = chip.dataset.g;
+    document.querySelectorAll('[data-g="' + g + '"]').forEach(el => {
+      el.style.display = chip.classList.contains("off") ? "none" : "";
+    });
+  });
+});
+
+// search
+const q = document.getElementById("q");
+q.addEventListener("input", () => {
+  const s = q.value.trim().toLowerCase();
+  const all = document.querySelectorAll("circle.node");
+  if (!s) {
+    all.forEach(c => c.classList.remove("dim", "match"));
+    matchesEl.textContent = "";
+    return;
+  }
+  const hits = nodes.filter(nd =>
+    nd.u.toLowerCase().includes(s) || (nd.n && nd.n.toLowerCase().includes(s)));
+  all.forEach(c => {
+    const hit = hits.some(h => h.u === c.dataset.u);
+    c.classList.toggle("match", hit);
+    c.classList.toggle("dim", !hit);
+  });
+  matchesEl.innerHTML = hits.length + " match" + (hits.length === 1 ? "" : "es") + ": " +
+    hits.slice(0, 8).map(h =>
+      '<button data-u="' + h.u + '">@' + h.u + "</button>").join(" ");
+  matchesEl.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+    const nd = nodes.find(n => n.u === b.dataset.u);
+    detail.innerHTML = "<b>" + (nd.n ? nd.n + " " : "") + "@" + nd.u + "</b> — " +
+      GROUPS[nd.g].label + ". 1 hop from Namkhang, 2 hops from everyone else in this graph.";
+  }));
+});
+</script>
+</body>
+</html>
