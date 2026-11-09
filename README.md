@@ -28,7 +28,10 @@ ego network with all 789 people, search, and group filters.
   615).
 - The non-mutuals split unevenly: 218 people follow him without a
   follow-back, versus 174 accounts he follows that don't follow him.
-  The following-only side is mostly brands, meme pages, and GT accounts.
+  Only 42 of the 174 following-only accounts (24%) match Georgia Tech /
+  Barstool markers, and 101 (58%) carry an ordinary personal full name,
+  so "mostly brands and meme pages" would be a guess, not a finding: the
+  data has no category labels.
 
 ## What this does not answer
 
@@ -68,6 +71,14 @@ python3 make_index.py
 | `MVP/graphing.py` | Re-renders the static ego-network plot. |
 | `MVP/results.json` | The computed statistics. |
 | `MVP/*.json` | The snapshot: followers, following, and the two derived lists. |
+
+## Deploy
+
+Pushes to the `build/finish` branch trigger `.github/workflows/deploy-pages.yml`,
+which regenerates `results.json`, `ego_network.png`, and `index.html` from the
+MVP data and publishes only `index.html` + `ego_network.png` to the `gh-pages`
+branch (GitHub Pages). The raw follower/following JSONs are never published to
+the live site. Live: https://namkhangnle.github.io/IGClustering/
 
 ## Data
 
